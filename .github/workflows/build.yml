@@ -1,0 +1,44 @@
+name: Build
+on:
+  workflow_dispatch:
+
+jobs:
+  bundle-app:
+    name: Bundle App
+    runs-on: macos-latest
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Install Dependencies
+        run: |
+          brew install meson pygobject3 gstreamer libadwaita adwaita-icon-theme desktop-file-utils pyinstaller
+          pip3 install --break-system-packages pyobjc
+
+      - name: Checkout Showtime
+        run: git clone https://gitlab.gnome.org/GNOME/Incubator/showtime.git
+
+      - name: Meson Build
+        run: |
+          cd showtime
+          meson setup _build
+          ninja install -C _build
+
+      - name: PyInstaller
+        env:
+          PYTHONPATH: /opt/homebrew/opt/homebrew/lib/python3.12/site-packages
+        run: |
+          cd showtime/build-aux/macos
+          pyinstaller ./showtime.spec
+
+      - name: Zip
+        run: |
+          cd showtime/build-aux/macos/dist
+          zip -yr Showtime.zip Showtime.app
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: showtime/build-aux/macos/dist/Showtime.zip
+          name: Showtime
