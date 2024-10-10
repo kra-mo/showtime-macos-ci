@@ -1,0 +1,50 @@
+name: Publish Release
+on:
+  push:
+    tags: ["*"]
+
+concurrency:
+  group: release-${{ github.sha }}
+
+jobs:
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout Showtime
+        run: git clone https://gitlab.gnome.org/GNOME/Incubator/showtime.git
+
+      - name: Download Workflow Artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: build.yml
+          commit: ${{ github.sha }}
+
+      - name: Get Release Notes
+        shell: python
+        run: |
+          import re, textwrap
+          open_file = open("showtime/data/org.gnome.Showtime.metainfo.xml.in", "r", encoding="utf-8")
+          string = open_file.read()
+          open_file.close()
+          string = re.findall("<release.*>\s*<description.*>\n([\s\S]*?)\s*</description>\s*<\/release>", string)[0]
+          string = textwrap.dedent(string)
+          open_file = open("release_notes", "w", encoding="utf-8")
+          open_file.write(string)
+          open_file.close()
+
+      - name: Get Tag Name
+        id: get_tag_name
+        run: echo tag_name=${GITHUB_REF#refs/tags/} >> $GITHUB_OUTPUT
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2.0.8
+        with:
+          files: |
+            Showtime/Showtime.zip
+          fail_on_unmatched_files: true
+          tag_name: ${{ steps.get_tag_name.outputs.tag_name }}
+          body_path: release_notes
